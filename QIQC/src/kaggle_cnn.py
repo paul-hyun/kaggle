@@ -2,8 +2,9 @@ import numpy as np
 import pandas as pd
 
 from keras import backend as K
-from keras.layers import Dense, Embedding, Input, GlobalMaxPooling1D, GlobalAveragePooling1D
-from keras.models import Sequential
+from keras.layers import Dense, Embedding, Input
+from keras.layers import Conv1D, MaxPooling1D, GlobalMaxPooling1D, Flatten
+from keras.models import Sequential, Model
 from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
 from keras.callbacks import Callback
@@ -57,16 +58,17 @@ def load_data():
 #
 def load_embedding(word_index, EMBEDDING_FILE, emb_mean, emb_std):
     n_words = min(MAX_FEATURES, len(word_index) + 1)
-    embedding_matrix = np.random.normal(emb_mean, emb_std, (nb_words, N_EMBED))
+    embedding_matrix = np.random.normal(emb_mean, emb_std, (n_words, N_EMBED))
 
-    def get_coefs(word, *arr): return word, np.asarray(arr, dtype='float32')
-    with open(EMBEDDING_FILE, encoding='UTF8') as f:
-        for o in f:
-            if len(o) > 100:
-                word, embedding_vector = get_coefs(*o.split(" "))
-                if word in word_index:
-                    index = word_index[word]
-                    embedding_matrix[index] = embedding_vector
+    if NROWS is None:
+        def get_coefs(word, *arr): return word, np.asarray(arr, dtype='float32')
+        with open(EMBEDDING_FILE, encoding='UTF8') as f:
+            for o in f:
+                if len(o) > 100:
+                    word, embedding_vector = get_coefs(*o.split(" "))
+                    if word in word_index:
+                        index = word_index[word]
+                        embedding_matrix[index] = embedding_vector
 
     return embedding_matrix
 
@@ -95,13 +97,21 @@ def f1_score(y_true, y_pred):
 # build model
 #
 def build_model(embedding_matrix):
-    model = Sequential()
-    model.add(Embedding(embedding_matrix.shape[0], N_EMBED, weights=[embedding_matrix], trainable=False))
-    model.add(GlobalMaxPooling1D())
-    model.add(Dense(32, activation='relu'))
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+    inp = Input(shape=(MAXLEN,))
 
+    input_embedding = Embedding(embedding_matrix.shape[0], N_EMBED, weights=[embedding_matrix], trainable=False)(inp)
+    conv1 = Conv1D(128, 5, activation='relu')(input_embedding)
+    pool1 = MaxPooling1D(5)(conv1)
+    conv2 = Conv1D(128, 5, activation='relu')(pool1)
+    pool2 = MaxPooling1D(5)(conv2)
+    # conv3 = Conv1D(128, 5, activation='relu')(pool2)
+    # pool3 = MaxPooling1D(35)(conv3)  # global max pooling
+    flat = Flatten()(pool2)
+    dense1 = Dense(128, activation='relu')(flat)
+    oup = Dense(1, activation='sigmoid')(dense1)
+
+    model = Model(inputs=inp, outputs=oup)
+    model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
 
@@ -121,10 +131,11 @@ model = build_model(embedding_matrix)
 # train
 model.fit(train_X, train_y, epochs=N_EPOCH, batch_size=N_BATCH)
 
-# predict
-prediction = model.predict(test_X)
+if NROWS is None:
+    # predict
+    prediction = model.predict(test_X)
 
-# make submission
-prediction = prediction.reshape(-1)
-output = pd.DataFrame(data={"qid": test_id, "prediction": prediction >= 0.5})
-output.to_csv("submission.csv", index=False, quoting=3)
+    # make submission
+    prediction = prediction.reshape(-1)
+    output = pd.DataFrame(data={"qid": test_id, "prediction": prediction >= 0.5})
+    output.to_csv("submission.csv", index=False, quoting=3)

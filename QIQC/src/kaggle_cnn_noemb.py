@@ -2,8 +2,9 @@ import numpy as np
 import pandas as pd
 
 from keras import backend as K
-from keras.layers import Dense, Embedding, Input, GlobalMaxPooling1D, GlobalAveragePooling1D
-from keras.models import Sequential
+from keras.layers import Dense, Embedding, Input
+from keras.layers import Conv1D, MaxPooling1D, GlobalMaxPooling1D, Flatten
+from keras.models import Sequential, Model
 from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
 from keras.callbacks import Callback
@@ -53,24 +54,6 @@ def load_data():
     return train_X, test_X, train_y, tokenizer.word_index, test_id
 
 #
-# load embedding matrix
-#
-def load_embedding(word_index, EMBEDDING_FILE, emb_mean, emb_std):
-    n_words = min(MAX_FEATURES, len(word_index) + 1)
-    embedding_matrix = np.random.normal(emb_mean, emb_std, (nb_words, N_EMBED))
-
-    def get_coefs(word, *arr): return word, np.asarray(arr, dtype='float32')
-    with open(EMBEDDING_FILE, encoding='UTF8') as f:
-        for o in f:
-            if len(o) > 100:
-                word, embedding_vector = get_coefs(*o.split(" "))
-                if word in word_index:
-                    index = word_index[word]
-                    embedding_matrix[index] = embedding_vector
-
-    return embedding_matrix
-
-#
 # calculate f1 score
 #
 def f1_score(y_true, y_pred):
@@ -94,14 +77,22 @@ def f1_score(y_true, y_pred):
 #
 # build model
 #
-def build_model(embedding_matrix):
-    model = Sequential()
-    model.add(Embedding(embedding_matrix.shape[0], N_EMBED, weights=[embedding_matrix], trainable=False))
-    model.add(GlobalMaxPooling1D())
-    model.add(Dense(32, activation='relu'))
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+def build_model(vocab_size):
+    inp = Input(shape=(MAXLEN,), dtype='float64')
 
+    input_embedding = Embedding(input_dim=vocab_size+1, output_dim=128,input_length=MAXLEN)(inp)
+    conv1 = Conv1D(128, 3, activation='relu')(input_embedding)
+    pool1 = MaxPooling1D(3)(conv1)
+    conv2 = Conv1D(128, 3, activation='relu')(pool1)
+    pool2 = MaxPooling1D(3)(conv2)
+    conv3 = Conv1D(128, 3, activation='relu')(pool2)
+    pool3 = MaxPooling1D(3)(conv3)  # global max pooling
+    flat = Flatten()(pool3)
+    dense1 = Dense(128, activation='relu')(flat)
+    oup = Dense(1, activation='sigmoid')(dense1)
+
+    model = Model(inputs=inp, outputs=oup)
+    model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
 
@@ -111,12 +102,9 @@ def build_model(embedding_matrix):
 train_X, test_X, train_y, word_index, test_id = load_data()
 print("Train length : ", len(train_X))
 print("Test length : ", len(test_X))
-embedding_matrix = load_embedding(word_index, DATA_DIR + "embeddings/glove.840B.300d/glove.840B.300d.txt", -0.005838499, 0.48782197)
-# embedding_matrix = load_embedding(word_index, DATA_DIR + "embeddings/wiki-news-300d-1M/wiki-news-300d-1M.vec", -0.0033469985, 0.109855495)
-# embedding_matrix = load_embedding(word_index, DATA_DIR + "embeddings/paragram_300_sl999/paragram_300_sl999.txt", -0.0053247833, 0.49346462)
 print("Embedding matrix : ", len(word_index))
 
-model = build_model(embedding_matrix)
+model = build_model(len(word_index))
 
 # train
 model.fit(train_X, train_y, epochs=N_EPOCH, batch_size=N_BATCH)
