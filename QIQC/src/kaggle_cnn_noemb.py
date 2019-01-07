@@ -3,7 +3,7 @@ import pandas as pd
 
 from keras import backend as K
 from keras.layers import Dense, Embedding, Input
-from keras.layers import Conv1D, MaxPooling1D, GlobalMaxPooling1D, Flatten
+from keras.layers import Conv1D, MaxPooling1D, GlobalMaxPooling1D, Dropout, Flatten
 from keras.models import Sequential, Model
 from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
@@ -81,18 +81,20 @@ def build_model(vocab_size):
     inp = Input(shape=(MAXLEN,), dtype='float64')
 
     input_embedding = Embedding(input_dim=vocab_size+1, output_dim=128,input_length=MAXLEN)(inp)
-    conv1 = Conv1D(128, 3, activation='relu')(input_embedding)
-    pool1 = MaxPooling1D(3)(conv1)
-    conv2 = Conv1D(128, 3, activation='relu')(pool1)
-    pool2 = MaxPooling1D(3)(conv2)
-    conv3 = Conv1D(128, 3, activation='relu')(pool2)
-    pool3 = MaxPooling1D(3)(conv3)  # global max pooling
-    flat = Flatten()(pool3)
-    dense1 = Dense(128, activation='relu')(flat)
-    oup = Dense(1, activation='sigmoid')(dense1)
+    drop1 = Dropout(0.2)(input_embedding)
+    conv1 = Conv1D(32, 3, activation='relu')(drop1)
+    pool1 = GlobalMaxPooling1D()(conv1)
+    # conv2 = Conv1D(128, 3, activation='relu')(pool1)
+    # pool2 = MaxPooling1D(3)(conv2)
+    # conv3 = Conv1D(128, 3, activation='relu')(pool2)
+    # pool3 = MaxPooling1D(3)(conv3)  # global max pooling
+    # flat = Flatten()(pool3)
+    dens1 = Dense(units=250, activation='relu')(pool1)
+    drop2 = Dropout(rate=0.2)(dens1)
+    oup = Dense(1, activation='sigmoid')(drop2)
 
     model = Model(inputs=inp, outputs=oup)
-    model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
 
