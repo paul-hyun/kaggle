@@ -64,14 +64,14 @@ def build_model(vocab_size):
 
     input_embedding = Embedding(input_dim=vocab_size+1, output_dim=128,input_length=MAXLEN)(inp)
     drop1 = Dropout(0.2)(input_embedding)
-    conv1 = Conv1D(32, 3, activation='relu')(drop1)
+    conv1 = Conv1D(128, 3, activation='relu')(drop1)
+    pool1 = MaxPooling1D(3)(conv1) # 0.7849999153107741
     # conv2 = Conv1D(128, 3, activation='relu')(pool1)
-    # pool2 = MaxPooling1D(3)(conv2)
+    # pool2 = MaxPooling1D(3)(conv2) # 0.7236561870596663
     # conv3 = Conv1D(128, 3, activation='relu')(pool2)
-    # pool3 = MaxPooling1D(3)(conv3)  # global max pooling
-    final = GlobalMaxPooling1D()(conv1)
-    # final = Flatten()(conv1)
-    dens1 = Dense(units=250, activation='relu')(final)
+    # pool3 = MaxPooling1D(3)(conv3) # 0.6333714395282822
+    final = GlobalMaxPooling1D()(pool1)  # final = Flatten()(conv1)
+    dens1 = Dense(units=256, activation='relu')(final)
     drop2 = Dropout(rate=0.2)(dens1)
     oup = Dense(1, activation='sigmoid')(drop2)
 
