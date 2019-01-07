@@ -92,6 +92,7 @@ print("Embedding matrix : ", len(word_index))
 model = build_model(len(word_index))
 
 # trains
+print('='*60)
 for epoch in range(N_EPOCH):
     model.fit(train_X, train_y, epochs=1, batch_size=N_BATCH, verbose=0)
     pred_Y = model.predict(valid_X)
