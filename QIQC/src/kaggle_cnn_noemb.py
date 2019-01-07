@@ -17,7 +17,7 @@ from sklearn.metrics import f1_score
 # Defind
 #
 DATA_DIR = "../input/"
-NROWS = 1000  # read count: None = all
+NROWS = None  # read count: None = all
 
 N_EPOCH = 10
 N_BATCH = 1000 if NROWS is None else NROWS // 3
@@ -52,7 +52,7 @@ def load_data():
     train_y = train_df['target'].values
     test_id = test_df["qid"].values
 
-    train_X, valid_X, train_y, valid_y = train_test_split(train_X, train_y, test_size=0.1, random_state=42)
+    train_X, valid_X, train_y, valid_y = train_test_split(train_X, train_y, test_size=0.05, random_state=42)
     return train_X, valid_X, test_X, train_y, valid_y, tokenizer.word_index, test_id
 
 
