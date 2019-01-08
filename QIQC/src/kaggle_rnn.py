@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 
 from keras import backend as K
-from keras.layers import Dense, Embedding, Input
-from keras.layers import Conv1D, MaxPooling1D, GlobalMaxPooling1D, Dropout, Flatten
+from keras.layers import Dense, Embedding, Input, Dropout
+from keras.layers import Bidirectional, LSTM
 from keras.models import Sequential, Model
 from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
@@ -17,14 +17,15 @@ from sklearn.metrics import f1_score
 # Defind
 #
 DATA_DIR = "../input/"
-NROWS = None  # read count: None = all
+NROWS = 1000  # read count: None = all
 
-N_EPOCH = 10
+N_EPOCH = 3
 N_BATCH = 1000 if NROWS is None else NROWS // 3
 
 N_EMBED = 300
 MAX_FEATURES = 300000
 MAXLEN = 70
+THRESHOLD = 0.34
 
 #
 # load data from train.csv, test.csv
@@ -61,17 +62,10 @@ def load_data():
 #
 def build_model(vocab_size):
     inp = Input(shape=(MAXLEN,), dtype='float64')
-
-    input_embedding = Embedding(input_dim=vocab_size+1, output_dim=128,input_length=MAXLEN)(inp)
-    drop1 = Dropout(0.2)(input_embedding)
-    conv1 = Conv1D(128, 3, activation='relu')(drop1)
-    pool1 = MaxPooling1D(3)(conv1) # 0.7849999153107741
-    # conv2 = Conv1D(128, 3, activation='relu')(pool1)
-    # pool2 = MaxPooling1D(3)(conv2) # 0.7236561870596663
-    # conv3 = Conv1D(128, 3, activation='relu')(pool2)
-    # pool3 = MaxPooling1D(3)(conv3) # 0.6333714395282822
-    final = GlobalMaxPooling1D()(pool1)  # final = Flatten()(conv1)
-    dens1 = Dense(units=256, activation='relu')(final)
+    input_embedding = Embedding(input_dim=vocab_size+1, output_dim=128, input_length=MAXLEN)(inp)
+    
+    lstm1 = Bidirectional(LSTM(100))(input_embedding)
+    dens1 = Dense(units=256, activation='relu')(lstm1)
     drop2 = Dropout(rate=0.2)(dens1)
     oup = Dense(1, activation='sigmoid')(drop2)
 
@@ -96,15 +90,15 @@ print('='*60)
 for epoch in range(N_EPOCH):
     model.fit(train_X, train_y, epochs=1, batch_size=N_BATCH, verbose=0)
     pred_Y = model.predict(valid_X)
-    pred_Y = pred_Y.reshape(-1) >= 0.5
+    pred_Y = pred_Y.reshape(-1) >= THRESHOLD
     pred_Y = pred_Y.astype(int)
     print(epoch, ':', f1_score(valid_y, pred_Y, average='macro'))
-    print('='*60)
+print('='*60)
 
 # predict
 prediction = model.predict(test_X)
 
 # make submission
 prediction = prediction.reshape(-1)
-output = pd.DataFrame(data={"qid": test_id, "prediction": prediction >= 0.5})
+output = pd.DataFrame(data={"qid": test_id, "prediction": prediction >= THRESHOLD})
 output.to_csv("submission.csv", index=False, quoting=3)
