@@ -4,10 +4,9 @@ import pandas as pd
 from keras import backend as K
 from keras.layers import Dense, Embedding, Input, Dropout
 from keras.layers import Conv1D, MaxPooling1D, GlobalMaxPooling1D, Flatten
-from keras.models import Sequential, Model
+from keras.models import Model
 from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
-from keras.callbacks import Callback
 
 from sklearn import metrics
 from sklearn.model_selection import train_test_split
@@ -33,7 +32,7 @@ THRESHOLD = 0.34
 def load_data():
     # load data
     train_df = pd.read_csv(DATA_DIR + "train.csv", nrows=NROWS)
-    test_df = pd.read_csv(DATA_DIR + "test.csv", nrows=None)
+    test_df = pd.read_csv(DATA_DIR + "test.csv", nrows=NROWS)
 
     # fill up the values
     train_X = train_df["question_text"].fillna("_##_").values
