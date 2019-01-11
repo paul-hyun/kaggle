@@ -4,7 +4,7 @@ import pandas as pd
 from keras import backend as K
 from keras import initializers, regularizers, constraints
 from keras.layers import Dense, Embedding, Input, Dropout
-from keras.layers import Bidirectional, LSTM, Layer, Concatenate, GlobalMaxPooling1D
+from keras.layers import Bidirectional, LSTM, Layer, Conv1D, GlobalMaxPooling1D, concatenate
 from keras.models import Model
 from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
@@ -17,7 +17,7 @@ from sklearn.metrics import f1_score
 # Defind
 #
 DATA_DIR = "../input/"
-NROWS = 1000  # read count: None = all
+NROWS = 10  # read count: None = all
 
 N_EPOCH = 3
 N_BATCH = 1000 if NROWS is None else NROWS // 3
@@ -47,6 +47,7 @@ def load_data():
 
     # Pad the sentences
     train_X = pad_sequences(train_X, maxlen=MAXLEN)
+    print(train_X)
     test_X = pad_sequences(test_X, maxlen=MAXLEN)
 
     # Get the target values
@@ -139,8 +140,13 @@ def build_model(vocab_size):
     input_embedding = Embedding(input_dim=vocab_size+1, output_dim=128, input_length=MAXLEN)(inp)
     
     drop1 = Dropout(0.2)(input_embedding)
-    atten1 = Attention(MAXLEN)(drop1)
-    dens1 = Dense(units=256, activation='relu')(atten1)
+    lstm1 = Bidirectional(LSTM(128, return_sequences=True))(drop1)
+    conv1 = Conv1D(128, 3, padding='same', activation='relu')(drop1)
+    atten1 = Attention(MAXLEN)(lstm1)
+    atten2 = Attention(MAXLEN)(conv1)
+    max_pool = GlobalMaxPooling1D()(drop1)
+    conc1 = concatenate([atten1, atten2, max_pool])
+    dens1 = Dense(units=256, activation='relu')(conc1)
     drop2 = Dropout(rate=0.2)(dens1)
     oup = Dense(1, activation='sigmoid')(drop2)
 

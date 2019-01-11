@@ -27,6 +27,22 @@ N_EMBED = 300
 MAX_FEATURES = 300000
 MAXLEN = 70
 
+
+#
+# Clean Text
+#
+puncts = [',', '.', '"', ':', ')', '(', '-', '!', '?', '|', ';', "'", '$', '&', '/', '[', ']', '>', '%', '=', '#', '*', '+', '\\', '•',  '~', '@', '£', 
+ '·', '_', '{', '}', '©', '^', '®', '`',  '<', '→', '°', '€', '™', '›',  '♥', '←', '×', '§', '″', '′', 'Â', '█', '½', 'à', '…', 
+ '“', '★', '”', '–', '●', 'â', '►', '−', '¢', '²', '¬', '░', '¶', '↑', '±', '¿', '▾', '═', '¦', '║', '―', '¥', '▓', '—', '‹', '─', 
+ '▒', '：', '¼', '⊕', '▼', '▪', '†', '■', '’', '▀', '¨', '▄', '♫', '☆', 'é', '¯', '♦', '¤', '▲', 'è', '¸', '¾', 'Ã', '⋅', '‘', '∞', 
+ '∙', '）', '↓', '、', '│', '（', '»', '，', '♪', '╩', '╚', '³', '・', '╦', '╣', '╔', '╗', '▬', '❤', 'ï', 'Ø', '¹', '≤', '‡', '√', ]
+def clean_text(x):
+    x = str(x)
+    for punct in puncts:
+        x = x.replace(punct, f' {punct} ')
+    return x
+
+
 #
 # load data from train.csv, test.csv
 #
@@ -35,15 +51,41 @@ def load_data():
     train_df = pd.read_csv(DATA_DIR + "train.csv", nrows=NROWS)
     test_df = pd.read_csv(DATA_DIR + "test.csv", nrows=None)
 
+    for df in [train_df, test_df]:
+        df["question_text"] = df["question_text"].str.lower()
+        df["question_text"] = df["question_text"].apply(lambda x: clean_text(x))
+        df["question_text"].fillna("_##_", inplace=True)
+
     # fill up the values
-    train_X = train_df["question_text"].fillna("_##_").values
-    test_X = test_df["question_text"].fillna("_##_").values
+    train_Text = train_df["question_text"].values
+    test_Text = test_df["question_text"].values
 
     # Tokenize the sentences
-    tokenizer = Tokenizer(num_words=MAX_FEATURES)
-    tokenizer.fit_on_texts(list(train_X))
-    train_X = tokenizer.texts_to_sequences(train_X)
-    test_X = tokenizer.texts_to_sequences(test_X)
+    tokenizer = Tokenizer(oov_token='__UNK__')
+    all_Text = []
+    all_Text.extend(train_Text)
+    all_Text.extend(test_Text)
+    tokenizer.fit_on_texts(list(all_Text))
+    train_X = tokenizer.texts_to_sequences(train_Text)
+    test_X = tokenizer.texts_to_sequences(test_Text)
+
+    __UNK__ = tokenizer.word_index['__UNK__']
+    count_all = 0
+    count_oov = 0
+    line_all = 0
+    line_oov = 0
+    for test_line in test_X:
+        flag_oov = False
+        for token in test_line:
+            count_all += 1
+            if token == __UNK__:
+                count_oov += 1
+                flag_oov = True
+        line_all += 1
+        if flag_oov:
+            line_oov += 1
+    print(count_oov, '/', count_all)
+    print(line_oov, '/', line_all)
 
     # Pad the sentences
     train_X = pad_sequences(train_X, maxlen=MAXLEN)
@@ -53,29 +95,7 @@ def load_data():
     train_y = train_df['target'].values
     test_id = test_df["qid"].values
 
-    return train_X, test_X, train_y, tokenizer.word_index, test_id
-
-#
-# load embedding matrix
-#
-def load_embedding(word_index, EMBEDDING_FILE):
-    nb_words = len(word_index) + 1
-    embedding_matrix = [None] * nb_words
-
-    for word, index in word_index.items():
-        embedding_matrix[index] = word
-
-    if NROWS == None:
-        def get_coefs(word, *arr): return word, np.asarray(arr, dtype='float32')
-        with open(EMBEDDING_FILE, encoding='UTF8') as f:
-            for o in f:
-                if len(o) > 100:
-                    word, embedding_vector = get_coefs(*o.split(" "))
-                    if word in word_index:
-                        index = word_index[word]
-                        embedding_matrix[index] = embedding_vector
-
-    return embedding_matrix
+    return train_X, test_X, train_y, tokenizer.word_index, test_id, train_Text, test_Text
 
 #
 # check is sring ascii
@@ -86,24 +106,9 @@ def is_ascii(s):
 #
 # main task
 #
-train_X, test_X, train_y, word_index, test_id = load_data()
+train_X, test_X, train_y, word_index, test_id, train_Text, test_Text = load_data()
 print("Train length : ", len(train_X))
 print("Test length : ", len(test_X))
-# embedding_matrix = load_embedding(word_index, DATA_DIR + "embeddings/glove.840B.300d/glove.840B.300d.txt")
-# embedding_matrix = load_embedding(word_index, DATA_DIR + "embeddings/wiki-news-300d-1M/wiki-news-300d-1M.vec")
-embedding_matrix = load_embedding(word_index, DATA_DIR + "embeddings/paragram_300_sl999/paragram_300_sl999.txt")
+print("Dic length : ", len(word_index))
 
-un_embeddings = []
-for matrix in embedding_matrix:
-    if isinstance(matrix, str):
-        # print(matrix)
-        # pass
-        un_embeddings.append(matrix)
-    else:
-        # print(matrix)
-        pass
 
-with codecs.open("paragram_out.txt", 'w', "utf-8") as f:
-    for un_embedding in un_embeddings:
-        f.write(un_embedding)
-        f.write("\n")
